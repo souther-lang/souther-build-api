@@ -39,4 +39,6 @@ is already running to be able to report that Souther needs a newer one.
 
 ## License
 
-Eclipse Public License 2.0.
+Copyright © kawasima 2026
+
+Released under the [Eclipse Public License 2.0](https://www.eclipse.org/legal/epl-2.0/).
