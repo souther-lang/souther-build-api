@@ -21,18 +21,23 @@ public final class DriverLoader {
     private DriverLoader() {}
 
     /**
-     * The driver on {@code toolchain}, loaded apart from whatever is calling.
+     * The toolchain {@code jars} are, open and held by the caller.
      *
-     * @param toolchain the jars a build resolved for the Souther version the project names
-     * @return the driver they carry, loaded apart from the caller
+     * <p>What {@link #over(List)} could not give back: the jars stay open for as long as the loader
+     * over them does, and there the caller is handed the driver alone. A build tool that compiles
+     * several projects with the same Souther opens one of these and keeps it — the compiler's
+     * classes are read once rather than once per project — and closes it when the build is done.
+     *
+     * @param jars the jars a build resolved for the Souther version the project names
+     * @return that Souther, open
      * @throws IllegalStateException if nothing there is a driver, or is one this build API cannot
      *                               speak to. Both name what was found, so a caller can say it
      *                               against the version it asked for.
      * @throws IllegalArgumentException if an entry is not a path a loader can be opened over
      * @throws UncheckedIOException if the toolchain cannot be read
      */
-    public static SoutherBuildDriver over(List<Path> toolchain) {
-        URL[] urls = urls(toolchain);
+    public static Toolchain open(List<Path> jars) {
+        URL[] urls = urls(jars);
         // Asked of the toolchain alone. Through the loader below it would fall through to the
         // caller, and the question is what the resolved Souther states, not what anything else has.
         try (URLClassLoader toolchainOnly = new URLClassLoader(urls, null)) {
@@ -40,7 +45,33 @@ public final class DriverLoader {
         } catch (IOException e) {
             throw new UncheckedIOException("unreadable toolchain", e);
         }
-        return found(new ToolchainClassLoader(urls, DriverLoader.class.getClassLoader()));
+        Toolchain opened =
+                new Toolchain(new ToolchainClassLoader(urls, DriverLoader.class.getClassLoader()));
+        try {
+            declaredIn(opened.loader());
+        } catch (RuntimeException | Error notADriver) {
+            // Refused, so nothing is going to close what was opened to find that out.
+            opened.close();
+            throw notADriver;
+        }
+        return opened;
+    }
+
+    /**
+     * The driver on {@code toolchain}, loaded apart from whatever is calling.
+     *
+     * <p>The loader it is read through is not handed back and nothing else can release it, so the
+     * jars stay open for the rest of the JVM. A caller that drives more than one compile wants
+     * {@link #open(List)} instead.
+     *
+     * @param toolchain the jars a build resolved for the Souther version the project names
+     * @return the driver they carry, loaded apart from the caller
+     * @throws IllegalStateException as {@link #open(List)} does
+     * @throws IllegalArgumentException as {@link #open(List)} does
+     * @throws UncheckedIOException as {@link #open(List)} does
+     */
+    public static SoutherBuildDriver over(List<Path> toolchain) {
+        return open(toolchain).driver();
     }
 
     /**
@@ -57,13 +88,22 @@ public final class DriverLoader {
      */
     public static SoutherBuildDriver foundIn(ClassLoader toolchain) {
         against(BuildProtocol.declaredBy(toolchain));
-        return found(toolchain);
+        return driverIn(toolchain);
     }
 
-    private static SoutherBuildDriver found(ClassLoader loader) {
+    static SoutherBuildDriver driverIn(ClassLoader loader) {
+        return declaredIn(loader).get();
+    }
+
+    /**
+     * The driver {@code loader} declares, without making one. Asked when a toolchain is opened: what
+     * it answers is that there is a driver there and its class loads, which is the part a caller has
+     * to hear before it holds the toolchain rather than at the first compile.
+     */
+    private static ServiceLoader.Provider<SoutherBuildDriver> declaredIn(ClassLoader loader) {
         // The two-argument load: the one-argument one reads the context class loader, which is the
         // build tool's and has none of this on it.
-        return ServiceLoader.load(SoutherBuildDriver.class, loader).findFirst()
+        return ServiceLoader.load(SoutherBuildDriver.class, loader).stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "the resolved souther-build-driver states a build protocol but offers no "
                                 + SoutherBuildDriver.class.getName()));
