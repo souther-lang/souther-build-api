@@ -1,5 +1,7 @@
 package souther.build;
 
+import java.util.Objects;
+
 /**
  * One thing the compile had to say, already written out.
  *
@@ -12,6 +14,17 @@ package souther.build;
  *                 the request asked for. Several lines.
  */
 public record BuildDiagnostic(Severity severity, String rendered) {
+
+    /**
+     * Names either component the driver left out, rather than letting it reach a build log as a
+     * severity nothing can be decided by or as the four letters {@code null}.
+     *
+     * @throws NullPointerException if a component is missing
+     */
+    public BuildDiagnostic {
+        Objects.requireNonNull(severity, "severity");
+        Objects.requireNonNull(rendered, "rendered");
+    }
 
     /** What a build does about a diagnostic. */
     public enum Severity {

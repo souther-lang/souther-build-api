@@ -2,6 +2,7 @@ package souther.build;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * One compile, as a build asks for it.
@@ -26,8 +27,17 @@ import java.util.List;
 public record BuildRequest(List<Path> sourcePaths, List<Path> classPath, Path outputDirectory,
                            Path stateDirectory, String languageTag) {
 
+    /**
+     * Copies the lists, and names whichever directory the caller left out — a plugin built against
+     * an earlier version of this record passes one fewer, and inside a compile that would surface as
+     * a failure naming whatever the driver did with it first.
+     *
+     * @throws NullPointerException if a directory is missing
+     */
     public BuildRequest {
         sourcePaths = List.copyOf(sourcePaths);
         classPath = List.copyOf(classPath);
+        Objects.requireNonNull(outputDirectory, "outputDirectory");
+        Objects.requireNonNull(stateDirectory, "stateDirectory");
     }
 }

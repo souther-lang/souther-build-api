@@ -15,7 +15,19 @@ import java.util.List;
  */
 public record BuildResult(boolean succeeded, List<BuildDiagnostic> diagnostics) {
 
+    /**
+     * Copies the diagnostics and holds the driver to the one thing said above: a build that stops
+     * has a reason to show for it. Left unchecked, that reason goes missing at the one moment a
+     * build log is read.
+     *
+     * @throws IllegalArgumentException if the compile failed and said nothing about it
+     * @throws NullPointerException if there are no diagnostics to copy
+     */
     public BuildResult {
         diagnostics = List.copyOf(diagnostics);
+        if (!succeeded && diagnostics.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "a failed compile has to say why: no diagnostics with succeeded=false");
+        }
     }
 }
