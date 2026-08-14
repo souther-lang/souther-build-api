@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.souther-lang</groupId>
+    <artifactId>souther-build-api</artifactId>
+    <!-- The major is the build protocol. A build plugin links one of these and the project it runs
+         in names a Souther version, so the two can disagree; this number is what they disagree
+         about, and it moves when the protocol does rather than when Souther does. -->
+    <version>1.0.0-SNAPSHOT</version>
+
+    <name>Souther Build API</name>
+    <description>
+        The service interface a build plugin drives a Souther compile through, and nothing else. A
+        plugin links this; the driver that implements it ships with the compiler, is resolved for the
+        Souther version the project names, and is loaded in isolation. This is the only thing the two
+        share, so what the compiler does with its own types is not something a plugin release has to
+        follow.
+    </description>
+    <url>https://github.com/souther-lang/souther-build-api</url>
+
+    <licenses>
+        <license>
+            <name>Eclipse Public License - v 2.0</name>
+            <url>https://www.eclipse.org/legal/epl-2.0/</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>kawasima</id>
+            <name>kawasima</name>
+            <url>https://github.com/kawasima</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/souther-lang/souther-build-api.git</connection>
+        <developerConnection>scm:git:git@github.com:souther-lang/souther-build-api.git</developerConnection>
+        <url>https://github.com/souther-lang/souther-build-api</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Below the compiler's 25, because this is what a build plugin links, and a plugin has to
+             start on whatever JDK the build is already running to be able to say that Souther needs
+             a newer one. Loaded any later and the report is an UnsupportedClassVersionError. 17 is
+             what current Maven and Gradle both run on. -->
+        <maven.compiler.release>17</maven.compiler.release>
+        <junit.version>6.1.2</junit.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- So one test can read what version this artifact actually is and hold the protocol
+             constant against it. The constant is the number a driver and a plugin compare, and this
+             pom's major is the number a build resolves by; two places saying the same thing is two
+             places to forget. -->
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+            </testResource>
+        </testResources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.6</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Activate for a Central release: `mvn -Prelease deploy`. Attaches sources and javadoc,
+             GPG-signs every artifact, and publishes to the Sonatype Central Portal
+             (autoPublish=false, so the bundle is reviewed in the Portal before release). Normal
+             build/test is untouched. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.11.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>false</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
