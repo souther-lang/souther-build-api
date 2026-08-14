@@ -1,7 +1,14 @@
 package souther.build;
 
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * The loader a resolved Souther toolchain is read through: its own classes first, and this build API
@@ -18,6 +25,13 @@ import java.net.URLClassLoader;
  * implements the interface being asked for.
  */
 final class ToolchainClassLoader extends URLClassLoader {
+
+    static {
+        // Not inherited: URLClassLoader registers itself, and a subclass that does not register too
+        // gets one lock for the whole loader out of getClassLoadingLock rather than one per name.
+        // Gradle drives a build from several threads, and they would load classes one at a time.
+        registerAsParallelCapable();
+    }
 
     /**
      * The one package both sides name — this one. That package and no other: a driver is written in
@@ -54,6 +68,28 @@ final class ToolchainClassLoader extends URLClassLoader {
     public URL getResource(String name) {
         URL own = findResource(name);
         return own != null ? own : super.getResource(name);
+    }
+
+    /**
+     * The same order when every one of them is asked for, which is the form that decides which driver
+     * is found: {@link java.util.ServiceLoader} reads the service declarations this way and takes the
+     * first that names a class. Left to the inherited order the caller's would be read first, and a
+     * plugin realm carrying a driver of its own would answer for the toolchain.
+     */
+    @Override
+    public Enumeration<URL> getResources(String name) throws IOException {
+        List<URL> ordered = new ArrayList<>(Collections.list(findResources(name)));
+        Set<String> already = new HashSet<>();
+        for (URL own : ordered) {
+            already.add(own.toString());
+        }
+        // Ours again among these, and it is already above.
+        for (URL theirs : Collections.list(super.getResources(name))) {
+            if (already.add(theirs.toString())) {
+                ordered.add(theirs);
+            }
+        }
+        return Collections.enumeration(ordered);
     }
 
     /** A class of this API itself, rather than one of something written against it. */
