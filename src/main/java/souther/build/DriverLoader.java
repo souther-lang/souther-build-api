@@ -8,6 +8,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.OptionalInt;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 /**
@@ -30,9 +31,10 @@ public final class DriverLoader {
      *
      * @param jars the jars a build resolved for the Souther version the project names
      * @return that Souther, open
-     * @throws IllegalStateException if nothing there is a driver, or is one this build API cannot
-     *                               speak to. Both name what was found, so a caller can say it
-     *                               against the version it asked for.
+     * @throws IllegalStateException if nothing there is a driver, if what it declares as one cannot
+     *                               be read, or if it is a driver this build API cannot speak to.
+     *                               Each names what was found, so a caller can say it against the
+     *                               version it asked for.
      * @throws IllegalArgumentException if an entry is not a path a loader can be opened over
      * @throws UncheckedIOException if the toolchain cannot be read
      */
@@ -51,7 +53,7 @@ public final class DriverLoader {
             declaredIn(opened.loader());
         } catch (RuntimeException | Error notADriver) {
             // Refused, so nothing is going to close what was opened to find that out.
-            opened.close();
+            closeBehind(opened, notADriver);
             throw notADriver;
         }
         return opened;
@@ -71,7 +73,29 @@ public final class DriverLoader {
      * @throws UncheckedIOException as {@link #open(List)} does
      */
     public static SoutherBuildDriver over(List<Path> toolchain) {
-        return open(toolchain).driver();
+        Toolchain opened = open(toolchain);
+        try {
+            return opened.driver();
+        } catch (RuntimeException | Error noDriverMade) {
+            // The caller is never handed the toolchain, so this is the last place that can give it
+            // back. Only a driver that would not be made gets here: whether its class is there was
+            // asked while opening.
+            closeBehind(opened, noDriverMade);
+            throw noDriverMade;
+        }
+    }
+
+    /**
+     * Gives back a toolchain that is not going to be handed over, without losing why it isn't. A
+     * loader that will not close is the smaller of the two things wrong, and the caller has to read
+     * the other one.
+     */
+    private static void closeBehind(Toolchain opened, Throwable refusal) {
+        try {
+            opened.close();
+        } catch (RuntimeException | Error alsoUnclosable) {
+            refusal.addSuppressed(alsoUnclosable);
+        }
     }
 
     /**
@@ -92,7 +116,13 @@ public final class DriverLoader {
     }
 
     static SoutherBuildDriver driverIn(ClassLoader loader) {
-        return declaredIn(loader).get();
+        ServiceLoader.Provider<SoutherBuildDriver> declared = declaredIn(loader);
+        try {
+            return declared.get();
+        } catch (ServiceConfigurationError notMade) {
+            throw new IllegalStateException("the resolved souther-build-driver declares "
+                    + declared.type().getName() + ", and one could not be made", notMade);
+        }
     }
 
     /**
@@ -101,12 +131,23 @@ public final class DriverLoader {
      * to hear before it holds the toolchain rather than at the first compile.
      */
     private static ServiceLoader.Provider<SoutherBuildDriver> declaredIn(ClassLoader loader) {
-        // The two-argument load: the one-argument one reads the context class loader, which is the
-        // build tool's and has none of this on it.
-        return ServiceLoader.load(SoutherBuildDriver.class, loader).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "the resolved souther-build-driver states a build protocol but offers no "
-                                + SoutherBuildDriver.class.getName()));
+        try {
+            // The two-argument load: the one-argument one reads the context class loader, which is
+            // the build tool's and has none of this on it.
+            return ServiceLoader.load(SoutherBuildDriver.class, loader).stream().findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "the resolved souther-build-driver states a build protocol but offers no "
+                                    + SoutherBuildDriver.class.getName()));
+        } catch (ServiceConfigurationError unreadable) {
+            // Said as the neighbouring refusals are said. A toolchain naming a driver class it does
+            // not carry is the same thing to a build plugin as one naming none — the resolved
+            // Souther is not one this can drive — and an Error would go past the catch a plugin
+            // writes to report that.
+            throw new IllegalStateException(
+                    "the resolved souther-build-driver states a build protocol and what it declares "
+                            + "as its " + SoutherBuildDriver.class.getName() + " cannot be read",
+                    unreadable);
+        }
     }
 
     /**

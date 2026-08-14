@@ -9,7 +9,7 @@
     <!-- The major is the build protocol. A build plugin links one of these and the project it runs
          in names a Souther version, so the two can disagree; this number is what they disagree
          about, and it moves when the protocol does rather than when Souther does. -->
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
 
     <name>Souther Build API</name>
     <description>
