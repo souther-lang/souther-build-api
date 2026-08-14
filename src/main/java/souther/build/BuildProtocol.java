@@ -23,6 +23,10 @@ public final class BuildProtocol {
      * <p>A resource rather than anything of the driver's own, so this can be asked before a class of
      * the driver's is loaded — which is the point: a driver built against a protocol this one does
      * not speak has to be refused by name, not by whatever linkage error its first call would raise.
+     *
+     * @param loader the loader a toolchain was resolved into
+     * @return the protocol stated there, or empty if nothing there states one
+     * @throws IllegalStateException if a declaration is there and is not a number this can read
      */
     public static OptionalInt declaredBy(ClassLoader loader) {
         URL declaration = loader.getResource(RESOURCE);

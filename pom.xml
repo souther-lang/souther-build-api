@@ -100,6 +100,13 @@
                         <manifest>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
+                        <!-- Stated rather than left to be derived from the file name, which is what
+                             an automatic module falls back to. This artifact exists to be the one
+                             name two independently released sides agree on, and the name a module
+                             path requires it by is part of that. -->
+                        <manifestEntries>
+                            <Automatic-Module-Name>souther.build</Automatic-Module-Name>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
@@ -132,9 +139,12 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <version>3.12.0</version>
+                        <!-- Held rather than waved through: this jar is the documentation of an
+                             interface whose two sides never meet, so javadoc that stopped building
+                             has to stop the release instead of shipping thin. -->
                         <configuration>
-                            <doclint>none</doclint>
-                            <failOnError>false</failOnError>
+                            <doclint>all</doclint>
+                            <failOnWarnings>true</failOnWarnings>
                             <quiet>true</quiet>
                         </configuration>
                         <executions>

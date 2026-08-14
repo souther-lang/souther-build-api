@@ -23,9 +23,13 @@ public final class DriverLoader {
     /**
      * The driver on {@code toolchain}, loaded apart from whatever is calling.
      *
+     * @param toolchain the jars a build resolved for the Souther version the project names
+     * @return the driver they carry, loaded apart from the caller
      * @throws IllegalStateException if nothing there is a driver, or is one this build API cannot
      *                               speak to. Both name what was found, so a caller can say it
      *                               against the version it asked for.
+     * @throws IllegalArgumentException if an entry is not a path a loader can be opened over
+     * @throws UncheckedIOException if the toolchain cannot be read
      */
     public static SoutherBuildDriver over(List<Path> toolchain) {
         URL[] urls = urls(toolchain);
@@ -46,6 +50,9 @@ public final class DriverLoader {
      * behind it and this API in front, so there is nothing here to build. What is left is the
      * protocol check and the lookup, and those must not be written once per build tool.
      *
+     * @param toolchain a loader the caller already composed, with the toolchain behind it and this
+     *                  API in front
+     * @return the driver it carries
      * @throws IllegalStateException as {@link #over(List)} does
      */
     public static SoutherBuildDriver foundIn(ClassLoader toolchain) {

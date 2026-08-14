@@ -24,6 +24,9 @@ public interface SoutherBuildDriver {
      * <p>A compile that fails returns a result saying so, with the diagnostics rendered. Only
      * something this interface does not describe — an unreadable source directory, an output
      * directory that cannot be written — is raised.
+     *
+     * @param request what to compile and where to put it
+     * @return whether the build may go on, and everything the compile had to say
      */
     BuildResult compile(BuildRequest request);
 }
